@@ -9,6 +9,10 @@ locals_without_parens = [
   action: 2,
   title: 1,
   description: 1,
+  example: 1,
+  lang: 1,
+  label: 1,
+  source: 1,
   code_sample: 1
 ]
 

@@ -21,6 +21,7 @@ defmodule AshOpenApi.MixProject do
     [
       {:ash, "~> 3.19"},
       {:spark, "~> 2.4"},
+      {:sourceror, "~> 1.8", only: [:dev, :test]},
       {:open_api_spex, "~> 3.22"}
     ]
   end

@@ -43,6 +43,11 @@ defmodule AshOpenApi do
     defstruct [:lang, :label, :source, :__spark_metadata__]
   end
 
+  defmodule CodeSampleMfa do
+    @moduledoc false
+    defstruct [:mfa, :__spark_metadata__]
+  end
+
   defmodule Action do
     @moduledoc false
     defstruct [
@@ -50,6 +55,7 @@ defmodule AshOpenApi do
       :title,
       :description,
       :code_samples,
+      :code_sample_mfas,
       :arguments,
       :attributes,
       :__spark_metadata__
@@ -152,6 +158,20 @@ defmodule AshOpenApi do
     ]
   }
 
+  @code_sample_mfa %Spark.Dsl.Entity{
+    name: :code_sample_mfa,
+    describe: "Define a code sample via MFA. The function must return a map with string keys: lang, source, and optionally label.",
+    target: CodeSampleMfa,
+    args: [:mfa],
+    schema: [
+      mfa: [
+        type: :mfa,
+        required: true,
+        doc: "An MFA tuple {module, function, args} returning a code sample map"
+      ]
+    ]
+  }
+
   @action %Spark.Dsl.Entity{
     name: :action,
     describe: "Define OpenAPI metadata for an action",
@@ -164,6 +184,7 @@ defmodule AshOpenApi do
       title: [@action_title],
       description: [@action_description],
       code_samples: [@code_sample],
+      code_sample_mfas: [@code_sample_mfa],
       arguments: [@action_argument],
       attributes: [@action_attribute]
     ]

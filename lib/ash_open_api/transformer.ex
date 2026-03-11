@@ -44,6 +44,7 @@ defmodule AshOpenApi.Transformer do
     |> maybe_put(:title, extract_nested_value(action.title))
     |> maybe_put(:description, extract_nested_value(action.description))
     |> maybe_put(:code_samples, build_code_samples(action.code_samples))
+    |> maybe_put(:code_sample_mfas, build_code_sample_mfas(action.code_sample_mfas))
     |> Map.put(:attributes, build_action_attributes(action.attributes, attributes_metadata))
     |> Map.put(:arguments, build_action_arguments(action.arguments))
   end
@@ -71,7 +72,7 @@ defmodule AshOpenApi.Transformer do
     |> Map.new()
   end
 
-  # Build code samples list
+  # Build code samples list from inline DSL entities
   defp build_code_samples(nil), do: nil
   defp build_code_samples([]), do: nil
 
@@ -84,6 +85,11 @@ defmodule AshOpenApi.Transformer do
       |> Map.put(:source, sample.source)
     end)
   end
+
+  # Persist MFA tuples for code_sample_mfa entities (resolved lazily at runtime)
+  defp build_code_sample_mfas(nil), do: nil
+  defp build_code_sample_mfas([]), do: nil
+  defp build_code_sample_mfas(entries), do: Enum.map(entries, & &1.mfa)
 
   # Build metadata map from entity fields
   defp build_metadata_map(entity) do

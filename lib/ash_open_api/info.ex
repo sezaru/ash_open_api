@@ -90,7 +90,18 @@ defmodule AshOpenApi.Info do
   """
   def action_code_samples(resource, action) do
     metadata = get_metadata(resource, :action, action)
-    metadata[:code_samples]
+
+    inline = Map.get(metadata, :code_samples, [])
+
+    mfa_samples =
+      metadata
+      |> Map.get(:code_sample_mfas, [])
+      |> Enum.map(fn {m, f, a} -> apply(m, f, a) end)
+
+    case inline ++ mfa_samples do
+      [] -> nil
+      samples -> samples
+    end
   end
 
   @doc """
@@ -163,7 +174,7 @@ defmodule AshOpenApi.Info do
 
     case Map.get(actions_map, name) do
       nil -> %{}
-      action_metadata -> Map.take(action_metadata, [:title, :description, :code_samples])
+      action_metadata -> Map.take(action_metadata, [:title, :description, :code_samples, :code_sample_mfas])
     end
   end
 end

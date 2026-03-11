@@ -13,7 +13,8 @@ locals_without_parens = [
   lang: 1,
   label: 1,
   source: 1,
-  code_sample: 1
+  code_sample: 1,
+  code_sample_mfa: 1
 ]
 
 [

@@ -18,9 +18,14 @@ defmodule AshOpenApi do
     defstruct [:name, :title, :description, :example, :__spark_metadata__]
   end
 
-  defmodule ActionArgument do
+  defmodule UnionVariant do
     @moduledoc false
     defstruct [:name, :title, :description, :example, :__spark_metadata__]
+  end
+
+  defmodule ActionArgument do
+    @moduledoc false
+    defstruct [:name, :title, :description, :example, :union_variants, :__spark_metadata__]
   end
 
   defmodule ActionAttribute do
@@ -101,6 +106,19 @@ defmodule AshOpenApi do
     ]
   }
 
+  @union_variant %Spark.Dsl.Entity{
+    name: :union_variant,
+    describe: "Define OpenAPI metadata for a specific variant of a union type argument",
+    target: UnionVariant,
+    args: [:name],
+    schema: [
+      name: [type: :atom, required: true],
+      title: [type: :string],
+      description: [type: :string],
+      example: [type: :any]
+    ]
+  }
+
   @action_argument %Spark.Dsl.Entity{
     name: :argument,
     describe: "Define OpenAPI metadata for an action argument",
@@ -111,6 +129,9 @@ defmodule AshOpenApi do
       title: [type: :string],
       description: [type: :string],
       example: [type: :any]
+    ],
+    entities: [
+      union_variants: [@union_variant]
     ]
   }
 

@@ -130,6 +130,16 @@ defmodule AshOpenApi.Info.SchemaBuilder do
   defp required?(%{allow_nil?: allow_nil?}), do: not allow_nil?
   defp required?(_), do: false
 
+  defp type(schema, %{type: type, name: name} = properties, context) do
+    storage_type = storage_type(type)
+    embedded_type? = embedded_type?(type)
+    new_type? = new_type?(type)
+    constraints = constraints!(type, properties)
+    enriched_context = Map.put(context, :field_name, name)
+
+    do_type(schema, type, storage_type, embedded_type?, new_type?, constraints, enriched_context)
+  end
+
   defp type(schema, %{type: type} = properties, context) do
     storage_type = storage_type(type)
     embedded_type? = embedded_type?(type)
@@ -207,14 +217,19 @@ defmodule AshOpenApi.Info.SchemaBuilder do
   end
 
   defp do_type(schema, Type.Union, :map, false, false, constraints, context) do
+    union_variants = get_union_variants_metadata(context)
+
     types =
       constraints
       |> Keyword.fetch!(:types)
       |> Enum.map(fn {key, properties} ->
-        {schema, _required?} =
+        {variant_schema, _required?} =
           properties |> Map.new() |> Map.put(:name, key) |> build_schema(context)
 
-        schema
+        variant_metadata = Map.get(union_variants, key, %{})
+
+        variant_schema
+        |> apply_variant_metadata(variant_metadata)
       end)
 
     %{schema | oneOf: types}
@@ -288,5 +303,27 @@ defmodule AshOpenApi.Info.SchemaBuilder do
       {:ok, constraints} -> constraints
       {:error, _} -> []
     end
+  end
+
+  defp get_union_variants_metadata(%{resource: resource, entity_type: :argument, action_name: action_name, field_name: field_name}) do
+    metadata = AshOpenApi.Info.get_metadata(resource, :argument, {action_name, field_name})
+    Map.get(metadata, :union_variants, %{})
+  end
+
+  defp get_union_variants_metadata(%{resource: resource, entity_type: entity_type, field_name: field_name})
+       when entity_type in [:attribute, :calculation] do
+    metadata = AshOpenApi.Info.get_metadata(resource, entity_type, field_name)
+    Map.get(metadata, :union_variants, %{})
+  end
+
+  defp get_union_variants_metadata(_context), do: %{}
+
+  defp apply_variant_metadata(schema, metadata) when map_size(metadata) == 0, do: schema
+
+  defp apply_variant_metadata(schema, metadata) do
+    schema
+    |> maybe_put(:title, metadata[:title])
+    |> maybe_put(:description, metadata[:description])
+    |> maybe_put(:example, metadata[:example])
   end
 end

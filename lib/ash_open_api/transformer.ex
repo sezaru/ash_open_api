@@ -66,8 +66,24 @@ defmodule AshOpenApi.Transformer do
   defp build_action_arguments(arguments) do
     (arguments || [])
     |> Enum.map(fn arg ->
-      metadata = build_metadata_map(arg)
+      metadata =
+        arg
+        |> build_metadata_map()
+        |> maybe_put(:union_variants, build_union_variants(arg.union_variants))
+
       {arg.name, metadata}
+    end)
+    |> Map.new()
+  end
+
+  # Build metadata map for union variants
+  defp build_union_variants(nil), do: nil
+  defp build_union_variants([]), do: nil
+
+  defp build_union_variants(variants) do
+    variants
+    |> Enum.map(fn variant ->
+      {variant.name, build_metadata_map(variant)}
     end)
     |> Map.new()
   end

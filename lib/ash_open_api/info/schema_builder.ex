@@ -123,6 +123,8 @@ defmodule AshOpenApi.Info.SchemaBuilder do
 
   defp description(schema, _), do: schema
 
+  defp default(schema, %{default: nil}), do: schema
+
   defp default(schema, %{default: default}) when not is_function(default),
     do: Map.put(schema, :default, default)
 

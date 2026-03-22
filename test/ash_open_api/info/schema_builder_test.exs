@@ -4,7 +4,6 @@ defmodule AshOpenApi.Info.SchemaBuilderTest do
   use ExUnit.Case, async: true
 
   alias AshOpenApi.Info.SchemaBuilder
-  alias OpenApiSpex.Schema
 
   defmodule TestDomain do
     @moduledoc false
@@ -281,20 +280,20 @@ defmodule AshOpenApi.Info.SchemaBuilderTest do
 
       {schema, _required?} = SchemaBuilder.build_schema(property, context)
 
-      assert schema.example == nil
-      assert schema.description == nil
+      assert Map.get(schema, :example) == nil
+      assert Map.get(schema, :description) == nil
     end
   end
 
   describe "build_schema/2 - with description and default" do
-    test "includes default value from property" do
+    test "skips function defaults for uuid primary key" do
       context = %{resource: SimpleResource, entity_type: :attribute}
       property = Ash.Resource.Info.attribute(SimpleResource, :id)
 
       {schema, _required?} = SchemaBuilder.build_schema(property, context)
 
-      # UUID has a default value generator function
-      assert is_function(schema.default)
+      # UUID default is a function (&Ash.UUID.generate/0) which cannot be JSON-serialized
+      refute Map.has_key?(schema, :default)
     end
 
     test "open_api description overrides property description" do
@@ -362,9 +361,9 @@ defmodule AshOpenApi.Info.SchemaBuilderTest do
   describe "split_schemas_and_required/1" do
     test "splits schemas and required fields correctly" do
       schemas = [
-        {{:name, %Schema{type: :string}}, {:name, true}},
-        {{:email, %Schema{type: :string}}, {:email, false}},
-        {{:age, %Schema{type: :integer}}, {:age, true}}
+        {{:name, %{type: :string}}, {:name, true}},
+        {{:email, %{type: :string}}, {:email, false}},
+        {{:age, %{type: :integer}}, {:age, true}}
       ]
 
       {properties, required} = SchemaBuilder.split_schemas_and_required(schemas)
@@ -389,8 +388,8 @@ defmodule AshOpenApi.Info.SchemaBuilderTest do
 
     test "handles all optional fields" do
       schemas = [
-        {{:name, %Schema{type: :string}}, {:name, false}},
-        {{:email, %Schema{type: :string}}, {:email, false}}
+        {{:name, %{type: :string}}, {:name, false}},
+        {{:email, %{type: :string}}, {:email, false}}
       ]
 
       {properties, required} = SchemaBuilder.split_schemas_and_required(schemas)
@@ -409,7 +408,7 @@ defmodule AshOpenApi.Info.SchemaBuilderTest do
 
       # Each item should be a {schema, required?} tuple
       Enum.each(schemas, fn {schema, required?} ->
-        assert %Schema{} = schema
+        assert is_map(schema)
         assert is_boolean(required?)
         assert is_atom(schema.title)
       end)
@@ -423,7 +422,7 @@ defmodule AshOpenApi.Info.SchemaBuilderTest do
 
       [{schema, required?}] = schemas
 
-      assert %Schema{} = schema
+      assert is_map(schema)
       assert schema.title == :display_name
       assert is_boolean(required?)
     end
@@ -478,7 +477,7 @@ defmodule AshOpenApi.Info.SchemaBuilderTest do
 
       # Should still build schema without metadata
       assert schema.type == :integer
-      assert schema.example == nil
+      assert Map.get(schema, :example) == nil
       assert schema.title == :age
     end
 

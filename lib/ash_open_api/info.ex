@@ -29,10 +29,29 @@ defmodule AshOpenApi.Info do
   """
   def action_output(resource, action, opts \\ []) do
     opts = Map.new(opts)
+    action_struct = Ash.Resource.Info.action(resource, action)
 
-    resource
-    |> Ash.Resource.Info.action(action)
-    |> SchemaBuilder.build_output_schema(opts, &resource_attributes/1, &resource_calculations/1)
+    if Map.has_key?(action_struct, :returns) do
+      action_struct
+      |> SchemaBuilder.build_output_schema(opts, &resource_attributes/1, &resource_calculations/1)
+    else
+      build_resource_output_schema(resource, opts)
+    end
+  end
+
+  defp build_resource_output_schema(resource, opts) do
+    attributes = resource_attributes(resource)
+    calculations = resource_calculations(resource)
+
+    {properties, required} =
+      attributes
+      |> Kernel.++(calculations)
+      |> Enum.map(fn {%{title: title} = schema, required?} ->
+        {{title, schema}, {title, required?}}
+      end)
+      |> SchemaBuilder.split_schemas_and_required()
+
+    Map.merge(opts, %{type: :object, properties: properties, required: required})
   end
 
   @doc """
@@ -173,8 +192,11 @@ defmodule AshOpenApi.Info do
     actions_map = Spark.Dsl.Extension.get_persisted(resource, :open_api_actions, %{})
 
     case Map.get(actions_map, name) do
-      nil -> %{}
-      action_metadata -> Map.take(action_metadata, [:title, :description, :code_samples, :code_sample_mfas])
+      nil ->
+        %{}
+
+      action_metadata ->
+        Map.take(action_metadata, [:title, :description, :code_samples, :code_sample_mfas])
     end
   end
 end

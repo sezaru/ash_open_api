@@ -1,13 +1,12 @@
 defmodule AshOpenApi.Info.SchemaBuilder do
   @moduledoc """
-  Schema building logic for converting Ash types to OpenApiSpex schemas.
+  Schema building logic for converting Ash types to JSON schemas (plain maps).
 
   This module handles the conversion of Ash resource attributes, calculations,
-  and arguments into OpenAPI schema definitions.
+  and arguments into OpenAPI schema definitions compatible with oaskit.
   """
 
   alias Ash.Type
-  alias OpenApiSpex.Schema
 
   @doc """
   Build a schema from properties with context.
@@ -16,7 +15,7 @@ defmodule AshOpenApi.Info.SchemaBuilder do
   """
   def build_schema(properties, context) do
     schema =
-      %Schema{}
+      %{}
       |> title(properties)
       |> description(properties)
       |> default(properties)
@@ -62,7 +61,7 @@ defmodule AshOpenApi.Info.SchemaBuilder do
     {schema, _required?} = build_schema(properties, %{})
 
     # Merge with opts and return
-    Map.merge(Map.new(opts), Map.from_struct(schema))
+    Map.merge(Map.new(opts), schema)
   end
 
   @doc """
@@ -116,15 +115,17 @@ defmodule AshOpenApi.Info.SchemaBuilder do
 
   defp get_entity_metadata(_, _), do: %{}
 
-  defp title(schema, %{name: name}), do: %{schema | title: name}
+  defp title(schema, %{name: name}), do: Map.put(schema, :title, name)
   defp title(schema, _), do: schema
 
   defp description(schema, %{description: description}),
-    do: %{schema | description: description}
+    do: Map.put(schema, :description, description)
 
   defp description(schema, _), do: schema
 
-  defp default(schema, %{default: default}), do: %{schema | default: default}
+  defp default(schema, %{default: default}) when not is_function(default),
+    do: Map.put(schema, :default, default)
+
   defp default(schema, _), do: schema
 
   defp required?(%{allow_nil?: allow_nil?}), do: not allow_nil?
@@ -152,7 +153,7 @@ defmodule AshOpenApi.Info.SchemaBuilder do
   defp do_type(schema, type, _storage_type, true, false, _constraints, context) do
     properties = AshOpenApi.Info.resource_attributes(Map.get(context, :resource, type))
 
-    %{schema | type: :object, properties: properties}
+    Map.merge(schema, %{type: :object, properties: properties})
   end
 
   defp do_type(schema, type, _storage_type, false, true, constraints, context) do
@@ -167,52 +168,52 @@ defmodule AshOpenApi.Info.SchemaBuilder do
   end
 
   defp do_type(schema, Type.Integer, :integer, false, false, _constraints, _context) do
-    %{schema | type: :integer}
+    Map.put(schema, :type, :integer)
   end
 
   defp do_type(schema, Type.Boolean, :boolean, false, false, _constraints, _context) do
-    %{schema | type: :boolean}
+    Map.put(schema, :type, :boolean)
   end
 
   defp do_type(schema, Type.Atom, :string, false, false, constraints, _context) do
     enum = Keyword.get(constraints, :one_of, [])
 
-    %{schema | type: :string, enum: enum}
+    Map.merge(schema, %{type: :string, enum: enum})
   end
 
   defp do_type(schema, Type.String, :string, false, false, _constraints, _context) do
-    %{schema | type: :string, format: :binary}
+    Map.merge(schema, %{type: :string, format: :binary})
   end
 
   defp do_type(schema, Type.DateTime, :utc_datetime, false, false, _constraints, _context) do
-    %{schema | type: :string, format: :"date-time"}
+    Map.merge(schema, %{type: :string, format: :"date-time"})
   end
 
   defp do_type(schema, Type.UUID, :uuid, false, false, _constraints, _context) do
-    %{schema | type: :string, format: :uuid}
+    Map.merge(schema, %{type: :string, format: :uuid})
   end
 
   defp do_type(schema, Type.UUIDv7, :uuid, false, false, _constraints, _context) do
-    %{schema | type: :string, format: :uuid}
+    Map.merge(schema, %{type: :string, format: :uuid})
   end
 
   defp do_type(schema, Type.Map, :map, false, false, constraints, context) do
     case Keyword.get(constraints, :fields) do
       nil ->
-        %{schema | type: :object}
+        Map.put(schema, :type, :object)
 
       fields ->
         {properties, required} =
           fields
           |> Enum.map(fn {key, properties} ->
-            {schema, required?} =
+            {field_schema, required?} =
               properties |> Map.new() |> Map.put(:name, key) |> build_schema(context)
 
-            {{key, schema}, {key, required?}}
+            {{key, field_schema}, {key, required?}}
           end)
           |> split_schemas_and_required()
 
-        %{schema | type: :object, properties: properties, required: required}
+        Map.merge(schema, %{type: :object, properties: properties, required: required})
     end
   end
 
@@ -232,7 +233,7 @@ defmodule AshOpenApi.Info.SchemaBuilder do
         |> apply_variant_metadata(variant_metadata)
       end)
 
-    %{schema | oneOf: types}
+    Map.put(schema, :oneOf, types)
   end
 
   defp do_type(schema, Type.Struct, :map, false, false, constraints, context) do
@@ -241,14 +242,14 @@ defmodule AshOpenApi.Info.SchemaBuilder do
     {properties, required} =
       fields
       |> Enum.map(fn {key, properties} ->
-        {schema, required?} =
+        {field_schema, required?} =
           properties |> Map.new() |> Map.put(:name, key) |> build_schema(context)
 
-        {{key, schema}, {key, required?}}
+        {{key, field_schema}, {key, required?}}
       end)
       |> split_schemas_and_required()
 
-    %{schema | type: :object, properties: properties, required: required}
+    Map.merge(schema, %{type: :object, properties: properties, required: required})
   end
 
   defp do_type(
@@ -266,7 +267,7 @@ defmodule AshOpenApi.Info.SchemaBuilder do
 
     items =
       do_type(
-        %Schema{},
+        %{},
         sub_type,
         sub_storage_type,
         sub_embedded_type?,
@@ -275,7 +276,7 @@ defmodule AshOpenApi.Info.SchemaBuilder do
         context
       )
 
-    %{schema | type: :array, items: items}
+    Map.merge(schema, %{type: :array, items: items})
   end
 
   defp storage_type(type), do: Type.storage_type(type)
@@ -305,12 +306,21 @@ defmodule AshOpenApi.Info.SchemaBuilder do
     end
   end
 
-  defp get_union_variants_metadata(%{resource: resource, entity_type: :argument, action_name: action_name, field_name: field_name}) do
+  defp get_union_variants_metadata(%{
+         resource: resource,
+         entity_type: :argument,
+         action_name: action_name,
+         field_name: field_name
+       }) do
     metadata = AshOpenApi.Info.get_metadata(resource, :argument, {action_name, field_name})
     Map.get(metadata, :union_variants, %{})
   end
 
-  defp get_union_variants_metadata(%{resource: resource, entity_type: entity_type, field_name: field_name})
+  defp get_union_variants_metadata(%{
+         resource: resource,
+         entity_type: entity_type,
+         field_name: field_name
+       })
        when entity_type in [:attribute, :calculation] do
     metadata = AshOpenApi.Info.get_metadata(resource, entity_type, field_name)
     Map.get(metadata, :union_variants, %{})

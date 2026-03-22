@@ -22,7 +22,7 @@ defmodule AshOpenApi.MixProject do
       {:ash, "~> 3.19"},
       {:spark, "~> 2.4"},
       {:sourceror, "~> 1.8", only: [:dev, :test]},
-      {:open_api_spex, github: "sezaru/open_api_spex", branch: "allow_ordering"},
+      {:oaskit, "~> 0.12"}
     ]
   end
 end

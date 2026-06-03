@@ -26,13 +26,40 @@ defmodule AshOpenApi.Info do
 
   @doc """
   Generate an output schema for an action's return value.
+
+  For create and update actions, returns a schema built from the resource's
+  public attributes and calculations. For generic actions, returns a schema
+  based on the action's declared return type.
   """
   def action_output(resource, action, opts \\ []) do
     opts = Map.new(opts)
+    action_struct = Ash.Resource.Info.action(resource, action)
 
-    resource
-    |> Ash.Resource.Info.action(action)
-    |> SchemaBuilder.build_output_schema(opts, &resource_attributes/1, &resource_calculations/1)
+    case action_struct do
+      %{type: type} when type in [:create, :update] ->
+        build_resource_output_schema(resource, opts)
+
+      _ ->
+        SchemaBuilder.build_output_schema(
+          action_struct,
+          opts,
+          &resource_attributes/1,
+          &resource_calculations/1
+        )
+    end
+  end
+
+  defp build_resource_output_schema(resource, opts) do
+    {properties, required} =
+      resource
+      |> resource_attributes()
+      |> Kernel.++(resource_calculations(resource))
+      |> Enum.map(fn {%{title: title} = attribute, required?} ->
+        {{title, attribute}, {title, required?}}
+      end)
+      |> SchemaBuilder.split_schemas_and_required()
+
+    Map.merge(opts, %{type: :object, properties: properties, required: required})
   end
 
   @doc """

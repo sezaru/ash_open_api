@@ -124,8 +124,18 @@ defmodule AshOpenApi.Info.SchemaBuilder do
 
   defp description(schema, _), do: schema
 
-  defp default(schema, %{default: default}), do: %{schema | default: default}
+  defp default(schema, %{default: default}) do
+    case encodable_default(default) do
+      :skip -> schema
+      value -> %{schema | default: value}
+    end
+  end
+
   defp default(schema, _), do: schema
+
+  defp encodable_default(default) when is_function(default), do: :skip
+  defp encodable_default({_m, _f, _a}), do: :skip
+  defp encodable_default(default), do: default
 
   defp required?(%{allow_nil?: allow_nil?}), do: not allow_nil?
   defp required?(_), do: false

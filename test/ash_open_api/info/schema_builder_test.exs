@@ -287,14 +287,14 @@ defmodule AshOpenApi.Info.SchemaBuilderTest do
   end
 
   describe "build_schema/2 - with description and default" do
-    test "includes default value from property" do
+    test "function default value is not included" do
       context = %{resource: SimpleResource, entity_type: :attribute}
       property = Ash.Resource.Info.attribute(SimpleResource, :id)
 
       {schema, _required?} = SchemaBuilder.build_schema(property, context)
 
       # UUID has a default value generator function
-      assert is_function(schema.default)
+      assert is_nil(schema.default)
     end
 
     test "open_api description overrides property description" do

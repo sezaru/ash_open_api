@@ -10,18 +10,41 @@ defmodule AshOpenApi.Info do
   alias AshOpenApi.Info.SchemaBuilder
 
   @doc """
-  Generate an input schema for an action's arguments.
+  Generate an input schema for an action's arguments and accepted attributes.
   """
   def action_input(resource, action, opts \\ []) do
+    accepted = action_accepted_attributes(resource, action)
+    arguments = action_arguments(resource, action)
+
     {properties, required} =
-      resource
-      |> action_arguments(action)
-      |> Enum.map(fn {%{title: title} = argument, required?} ->
-        {{title, argument}, {title, required?}}
+      (accepted ++ arguments)
+      |> Enum.map(fn {%{title: title} = item, required?} ->
+        {{title, item}, {title, required?}}
       end)
       |> SchemaBuilder.split_schemas_and_required()
 
     opts |> Map.new() |> Map.merge(%{type: :object, properties: properties, required: required})
+  end
+
+  @doc """
+  Get accepted attributes for an action as schema tuples.
+  """
+  def action_accepted_attributes(resource, action) do
+    action_struct = Ash.Resource.Info.action(resource, action)
+    accept = Map.get(action_struct, :accept, []) || []
+
+    attribute_map =
+      resource
+      |> Ash.Resource.Info.attributes()
+      |> Map.new(fn attr -> {attr.name, attr} end)
+
+    context = %{resource: resource, entity_type: :action_attribute, action_name: action}
+
+    accept
+    |> Enum.map(&Map.get(attribute_map, &1))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.filter(& &1.public?)
+    |> Enum.map(&SchemaBuilder.build_schema(&1, context))
   end
 
   @doc """

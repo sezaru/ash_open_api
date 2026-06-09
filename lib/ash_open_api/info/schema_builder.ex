@@ -159,21 +159,62 @@ defmodule AshOpenApi.Info.SchemaBuilder do
     do_type(schema, type, storage_type, embedded_type?, new_type?, constraints, context)
   end
 
-  defp do_type(schema, type, _storage_type, true, false, _constraints, context) do
-    properties = AshOpenApi.Info.resource_attributes(Map.get(context, :resource, type))
+  defp do_type(
+         schema,
+         {:array, sub_type},
+         {:array, sub_storage_type},
+         true,
+         false,
+         constraints,
+         context
+       ) do
+    sub_constraints = Keyword.get(constraints, :items, [])
 
-    %{schema | type: :object, properties: properties}
+    items =
+      do_type(
+        %Schema{},
+        sub_type,
+        sub_storage_type,
+        embedded_type?(sub_type),
+        new_type?(sub_type),
+        sub_constraints,
+        context
+      )
+
+    %{schema | type: :array, items: items}
+  end
+
+  defp do_type(schema, type, _storage_type, true, false, _constraints, _context) do
+    {properties, required} =
+      type
+      |> AshOpenApi.Info.resource_attributes()
+      |> Enum.map(fn {%{title: title} = attribute, required?} ->
+        {{title, attribute}, {title, required?}}
+      end)
+      |> split_schemas_and_required()
+
+    %{schema | type: :object, properties: properties, required: required}
   end
 
   defp do_type(schema, type, _storage_type, false, true, constraints, context) do
-    {sub_type, sub_storage_type} =
-      if sub_storage_type = open_api_type(type) do
-        {get_type(sub_storage_type), sub_storage_type}
-      else
-        {subtype_of(type), storage_type(type)}
-      end
+    cond do
+      Code.ensure_loaded?(type) and function_exported?(type, :open_api_schema, 1) ->
+        type
+        |> apply(:open_api_schema, [constraints])
+        |> Map.from_struct()
+        |> Enum.reject(fn {_, v} -> is_nil(v) end)
+        |> Enum.reduce(schema, fn {k, v}, acc -> Map.put(acc, k, v) end)
 
-    do_type(schema, sub_type, sub_storage_type, false, false, constraints, context)
+      true ->
+        {sub_type, sub_storage_type} =
+          if sub_storage_type = open_api_type(type) do
+            {get_type(sub_storage_type), sub_storage_type}
+          else
+            {subtype_of(type), storage_type(type)}
+          end
+
+        do_type(schema, sub_type, sub_storage_type, false, false, constraints, context)
+    end
   end
 
   defp do_type(schema, Type.Integer, :integer, false, false, _constraints, _context) do
@@ -198,12 +239,40 @@ defmodule AshOpenApi.Info.SchemaBuilder do
     %{schema | type: :string, format: :"date-time"}
   end
 
+  defp do_type(schema, Type.Date, :date, false, false, _constraints, _context) do
+    %{schema | type: :string, format: :date}
+  end
+
+  defp do_type(schema, Type.Time, :time, false, false, _constraints, _context) do
+    %{schema | type: :string, format: :time}
+  end
+
   defp do_type(schema, Type.UUID, :uuid, false, false, _constraints, _context) do
     %{schema | type: :string, format: :uuid}
   end
 
   defp do_type(schema, Type.UUIDv7, :uuid, false, false, _constraints, _context) do
     %{schema | type: :string, format: :uuid}
+  end
+
+  defp do_type(
+         schema,
+         AshMoney.Types.Money,
+         :money_with_currency,
+         false,
+         false,
+         _constraints,
+         _context
+       ) do
+    %{
+      schema
+      | type: :object,
+        properties: %{
+          amount: %Schema{type: :string, description: "Decimal amount as a string"},
+          currency: %Schema{type: :string, description: "ISO 4217 currency code"}
+        },
+        required: [:amount, :currency]
+    }
   end
 
   defp do_type(schema, Type.Map, :map, false, false, constraints, context) do
@@ -261,6 +330,29 @@ defmodule AshOpenApi.Info.SchemaBuilder do
     %{schema | type: :object, properties: properties, required: required}
   end
 
+  defp do_type(schema, Ash.Type.CiString, :ci_string, false, false, _constraints, _context) do
+    %{schema | type: :string}
+  end
+
+  defp do_type(schema, type, _storage_type, false, false, constraints, _context)
+       when is_atom(type) do
+    cond do
+      Code.ensure_loaded?(type) and function_exported?(type, :open_api_schema, 1) ->
+        type
+        |> apply(:open_api_schema, [constraints])
+        |> Map.from_struct()
+        |> Enum.reject(fn {_, v} -> is_nil(v) end)
+        |> Enum.reduce(schema, fn {k, v}, acc -> Map.put(acc, k, v) end)
+
+      Code.ensure_loaded?(type) and function_exported?(type, :values, 0) ->
+        %{schema | type: :string, enum: Enum.map(type.values(), &Atom.to_string/1)}
+
+      true ->
+        raise ArgumentError,
+              "AshOpenApi.Info.SchemaBuilder: no schema mapping for type #{inspect(type)}"
+    end
+  end
+
   defp do_type(
          schema,
          {:array, sub_type},
@@ -315,12 +407,21 @@ defmodule AshOpenApi.Info.SchemaBuilder do
     end
   end
 
-  defp get_union_variants_metadata(%{resource: resource, entity_type: :argument, action_name: action_name, field_name: field_name}) do
+  defp get_union_variants_metadata(%{
+         resource: resource,
+         entity_type: :argument,
+         action_name: action_name,
+         field_name: field_name
+       }) do
     metadata = AshOpenApi.Info.get_metadata(resource, :argument, {action_name, field_name})
     Map.get(metadata, :union_variants, %{})
   end
 
-  defp get_union_variants_metadata(%{resource: resource, entity_type: entity_type, field_name: field_name})
+  defp get_union_variants_metadata(%{
+         resource: resource,
+         entity_type: entity_type,
+         field_name: field_name
+       })
        when entity_type in [:attribute, :calculation] do
     metadata = AshOpenApi.Info.get_metadata(resource, entity_type, field_name)
     Map.get(metadata, :union_variants, %{})

@@ -223,8 +223,11 @@ defmodule AshOpenApi.Info do
     actions_map = Spark.Dsl.Extension.get_persisted(resource, :open_api_actions, %{})
 
     case Map.get(actions_map, name) do
-      nil -> %{}
-      action_metadata -> Map.take(action_metadata, [:title, :description, :code_samples, :code_sample_mfas])
+      nil ->
+        %{}
+
+      action_metadata ->
+        Map.take(action_metadata, [:title, :description, :code_samples, :code_sample_mfas])
     end
   end
 end

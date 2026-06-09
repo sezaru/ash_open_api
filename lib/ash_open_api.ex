@@ -181,7 +181,8 @@ defmodule AshOpenApi do
 
   @code_sample_mfa %Spark.Dsl.Entity{
     name: :code_sample_mfa,
-    describe: "Define a code sample via MFA. The function must return a map with string keys: lang, source, and optionally label.",
+    describe:
+      "Define a code sample via MFA. The function must return a map with string keys: lang, source, and optionally label.",
     target: CodeSampleMfa,
     args: [:mfa],
     schema: [

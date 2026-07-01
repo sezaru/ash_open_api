@@ -135,6 +135,20 @@ defmodule AshOpenApi.Info.SchemaBuilder do
 
   defp encodable_default(default) when is_function(default), do: :skip
   defp encodable_default({_m, _f, _a}), do: :skip
+
+  defp encodable_default(%struct{} = default) do
+    if Ash.Resource.Info.resource?(struct) do
+      for attr <- Ash.Resource.Info.attributes(struct), attr.public?, into: %{} do
+        {attr.name, encodable_default(Map.get(default, attr.name))}
+      end
+    else
+      default
+    end
+  end
+
+  defp encodable_default(default) when is_list(default),
+    do: Enum.map(default, &encodable_default/1)
+
   defp encodable_default(default), do: default
 
   defp required?(%{allow_nil?: allow_nil?}), do: not allow_nil?

@@ -387,4 +387,104 @@ defmodule AshOpenApi.DslTest do
       assert map_size(metadata[:update][:attributes]) == 0
     end
   end
+
+  defmodule ExcludeResource do
+    @moduledoc false
+
+    use Ash.Resource,
+      domain: TestDomain,
+      extensions: [AshOpenApi]
+
+    attributes do
+      uuid_primary_key :id, public?: true
+      attribute :name, :string, allow_nil?: false, public?: true
+      attribute :internal_id, :string, public?: true
+    end
+
+    calculations do
+      calculate :visible_calc, :string, expr(name), public?: true
+      calculate :hidden_calc, :string, expr(name), public?: true
+    end
+
+    actions do
+      defaults [:read]
+
+      create :create do
+        accept [:name, :internal_id]
+      end
+    end
+
+    open_api do
+      attributes do
+        attribute :internal_id, exclude?: true, description: "Excluded from output"
+      end
+
+      calculations do
+        calculation(:hidden_calc, exclude?: true)
+      end
+    end
+  end
+
+  describe "exclude? option" do
+    test "persists exclude? on attribute metadata when true" do
+      metadata = Spark.Dsl.Extension.get_persisted(ExcludeResource, :open_api_attributes, %{})
+
+      assert metadata[:internal_id][:exclude?] == true
+    end
+
+    test "does not persist exclude? key when unset or false" do
+      metadata = Spark.Dsl.Extension.get_persisted(TestResource, :open_api_attributes, %{})
+
+      refute Map.has_key?(metadata[:name], :exclude?)
+      refute Map.has_key?(metadata[:status], :exclude?)
+    end
+
+    test "excluded? returns true for attributes marked exclude?" do
+      assert AshOpenApi.Info.excluded?(ExcludeResource, :attribute, :internal_id)
+    end
+
+    test "excluded? returns false for attributes without exclude? metadata" do
+      refute AshOpenApi.Info.excluded?(ExcludeResource, :attribute, :name)
+      refute AshOpenApi.Info.excluded?(ExcludeResource, :attribute, :id)
+    end
+
+    test "excluded? returns true for calculations marked exclude?" do
+      assert AshOpenApi.Info.excluded?(ExcludeResource, :calculation, :hidden_calc)
+    end
+
+    test "excluded? returns false for calculations without exclude? metadata" do
+      refute AshOpenApi.Info.excluded?(ExcludeResource, :calculation, :visible_calc)
+    end
+
+    test "resource_attributes omits excluded attributes" do
+      titles =
+        ExcludeResource
+        |> AshOpenApi.Info.resource_attributes()
+        |> Enum.map(fn {schema, _required?} -> schema.title end)
+
+      assert :id in titles
+      assert :name in titles
+      refute :internal_id in titles
+    end
+
+    test "resource_calculations omits excluded calculations" do
+      titles =
+        ExcludeResource
+        |> AshOpenApi.Info.resource_calculations()
+        |> Enum.map(fn {schema, _required?} -> schema.title end)
+
+      assert :visible_calc in titles
+      refute :hidden_calc in titles
+    end
+
+    test "action_accepted_attributes still returns excluded attributes so inputs remain intact" do
+      titles =
+        ExcludeResource
+        |> AshOpenApi.Info.action_accepted_attributes(:create)
+        |> Enum.map(fn {schema, _required?} -> schema.title end)
+
+      assert :name in titles
+      assert :internal_id in titles
+    end
+  end
 end

@@ -87,6 +87,8 @@ defmodule AshOpenApi.Info do
 
   @doc """
   Get all public resource attributes as schema tuples.
+
+  Attributes marked with `exclude?: true` under the `open_api` DSL are omitted.
   """
   def resource_attributes(resource) do
     context = %{resource: resource, entity_type: :attribute}
@@ -94,11 +96,14 @@ defmodule AshOpenApi.Info do
     resource
     |> Ash.Resource.Info.attributes()
     |> Enum.filter(& &1.public?)
+    |> Enum.reject(&excluded?(resource, :attribute, &1.name))
     |> Enum.map(&SchemaBuilder.build_schema(&1, context))
   end
 
   @doc """
   Get all public resource calculations as schema tuples.
+
+  Calculations marked with `exclude?: true` under the `open_api` DSL are omitted.
   """
   def resource_calculations(resource) do
     context = %{resource: resource, entity_type: :calculation}
@@ -106,7 +111,17 @@ defmodule AshOpenApi.Info do
     resource
     |> Ash.Resource.Info.calculations()
     |> Enum.filter(& &1.public?)
+    |> Enum.reject(&excluded?(resource, :calculation, &1.name))
     |> Enum.map(&SchemaBuilder.build_schema(&1, context))
+  end
+
+  @doc """
+  Return whether an attribute or calculation is marked `exclude?: true`.
+  """
+  def excluded?(resource, entity_type, name) when entity_type in [:attribute, :calculation] do
+    resource
+    |> get_metadata(entity_type, name)
+    |> Map.get(:exclude?, false) == true
   end
 
   @doc """

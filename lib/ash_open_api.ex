@@ -5,12 +5,12 @@ defmodule AshOpenApi do
 
   defmodule Attribute do
     @moduledoc false
-    defstruct [:name, :title, :description, :example, :__spark_metadata__]
+    defstruct [:name, :title, :description, :example, :exclude?, :__spark_metadata__]
   end
 
   defmodule Calculation do
     @moduledoc false
-    defstruct [:name, :title, :description, :example, :__spark_metadata__]
+    defstruct [:name, :title, :description, :example, :exclude?, :__spark_metadata__]
   end
 
   defmodule Relationship do
@@ -76,7 +76,12 @@ defmodule AshOpenApi do
       name: [type: :atom, required: true],
       title: [type: :string],
       description: [type: :string],
-      example: [type: :any]
+      example: [type: :any],
+      exclude?: [
+        type: :boolean,
+        default: false,
+        doc: "When true, the attribute is omitted from generated output schemas"
+      ]
     ]
   }
 
@@ -89,7 +94,12 @@ defmodule AshOpenApi do
       name: [type: :atom, required: true],
       title: [type: :string],
       description: [type: :string],
-      example: [type: :any]
+      example: [type: :any],
+      exclude?: [
+        type: :boolean,
+        default: false,
+        doc: "When true, the calculation is omitted from generated output schemas"
+      ]
     ]
   }
 

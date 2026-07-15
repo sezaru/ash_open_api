@@ -113,7 +113,13 @@ defmodule AshOpenApi.Transformer do
     |> maybe_put(:title, entity.title)
     |> maybe_put(:description, entity.description)
     |> maybe_put(:example, entity.example)
+    |> maybe_put_exclude(entity)
   end
+
+  # Only persist :exclude? when the entity exposes the field and it's true.
+  # Action-scoped attribute/argument entities do not carry :exclude?.
+  defp maybe_put_exclude(map, %{exclude?: true}), do: Map.put(map, :exclude?, true)
+  defp maybe_put_exclude(map, _entity), do: map
 
   # Extract value from nested entity (for action title/description)
   defp extract_nested_value([%{value: value}]), do: value

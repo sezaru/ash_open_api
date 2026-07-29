@@ -22,6 +22,7 @@ defmodule AshOpenApi.Info.SchemaBuilder do
       |> default(properties)
       |> type(properties, context)
       |> merge_metadata(properties, context)
+      |> nullable(properties)
 
     {schema, required?(properties)}
   end
@@ -153,6 +154,9 @@ defmodule AshOpenApi.Info.SchemaBuilder do
 
   defp required?(%{allow_nil?: allow_nil?}), do: not allow_nil?
   defp required?(_), do: false
+
+  defp nullable(schema, %{allow_nil?: true}), do: %{schema | nullable: true}
+  defp nullable(schema, _), do: schema
 
   defp type(schema, %{type: type, name: name} = properties, context) do
     storage_type = storage_type(type)
